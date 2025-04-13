@@ -67,12 +67,28 @@ login_manager.login_view = 'login'
 # User loader for Flask-Login
 @login_manager.user_loader
 def load_user(user_id):
-    if session.get('user_type') == 'admin':
-        from models import Admin
-        return Admin.query.get(int(user_id))
+    if config.USE_MONGODB:
+        # Handle MongoDB users
+        from mongo_models import MongoUser, MongoAdmin
+        
+        if session.get('user_type') == 'admin':
+            # Load admin from MongoDB
+            admin_dict = MongoAdmin.collection.find_one({'_id': ObjectId(user_id)})
+            if admin_dict:
+                return MongoAdmin(**admin_dict)
+        else:
+            # Load user from MongoDB
+            user_dict = MongoUser.collection.find_one({'_id': ObjectId(user_id)})
+            if user_dict:
+                return MongoUser(**user_dict)
     else:
-        from models import User
-        return User.query.get(int(user_id))
+        # Handle PostgreSQL users
+        if session.get('user_type') == 'admin':
+            from models import Admin
+            return Admin.query.get(int(user_id))
+        else:
+            from models import User
+            return User.query.get(int(user_id))
 
 with app.app_context():
     # Import models to ensure tables are created
