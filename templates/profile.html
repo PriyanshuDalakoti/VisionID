@@ -41,6 +41,29 @@
                                 </div>
                                 <h3 class="h4 mt-3">{{ user.username }}</h3>
                                 <p class="text-muted">{{ user.email }}</p>
+                                <div class="card mt-3">
+                                    <div class="card-header">
+                                        <h4 class="h6 mb-0">Credentials</h4>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <strong>Username:</strong>
+                                            <span>{{ user.username }}</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <strong>Email:</strong>
+                                            <span>{{ user.email }}</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <strong>Password:</strong>
+                                            <span>•••••••••••</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between">
+                                            <strong>Created:</strong>
+                                            <span>{{ user.created_at.strftime('%Y-%m-%d') }}</span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                             <div class="col-md-8">
                                 <div class="user-stats mb-4">

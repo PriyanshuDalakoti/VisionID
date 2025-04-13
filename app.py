@@ -129,19 +129,33 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
         
+        if not username or not password:
+            return render_template('login.html', error='Username and password are required')
+        
+        # Debug log to track username for troubleshooting
+        logger.debug(f"Login attempt for username: {username}")
+        
+        # Look up user by username
         user = User.query.filter_by(username=username).first()
         
-        if user and user.check_password(password):
-            login_user(user)
-            # Update last login time
-            user.last_login = datetime.datetime.utcnow()
-            db.session.commit()
-            
-            # Redirect to next page or profile
-            next_page = request.args.get('next')
-            return redirect(next_page if next_page else url_for('profile'))
+        # If user found, check password
+        if user:
+            logger.debug(f"User found with ID: {user.id}")
+            if user.check_password(password):
+                login_user(user)
+                # Update last login time
+                user.last_login = datetime.datetime.utcnow()
+                db.session.commit()
+                
+                # Redirect to next page or profile
+                next_page = request.args.get('next')
+                return redirect(next_page if next_page else url_for('profile'))
+            else:
+                logger.debug("Password check failed")
+                return render_template('login.html', error='Invalid password')
         else:
-            return render_template('login.html', error='Invalid username or password')
+            logger.debug("User not found")
+            return render_template('login.html', error='Username not found')
     
     return render_template('login.html')
 

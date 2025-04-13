@@ -13,13 +13,18 @@ document.addEventListener('DOMContentLoaded', function() {
     const resetSuccessBtn = document.getElementById('reset-success');
     const resetFailureBtn = document.getElementById('reset-failure');
     
-    // Username field (optional)
+    // Username field (required)
     const usernameField = document.getElementById('username-field');
+    const usernameError = document.getElementById('username-error');
+    const usernameErrorMessage = document.getElementById('username-error-message');
     
     // Event Listeners
     authenticateBtn.addEventListener('click', authenticateUser);
     resetSuccessBtn.addEventListener('click', resetApplication);
     resetFailureBtn.addEventListener('click', resetApplication);
+    
+    // Check username availability when starting the camera
+    document.getElementById('start-camera').addEventListener('click', validateUsername);
     
     // Webcam event listeners
     document.addEventListener('webcam:captured', function(event) {
@@ -49,15 +54,17 @@ document.addEventListener('DOMContentLoaded', function() {
             authenticateBtn.classList.add('d-none');
             loadingIndicator.classList.remove('d-none');
             
+            // Validate username (required)
+            if (!usernameField || usernameField.value.trim() === '') {
+                showError('Username is required for authentication. Please enter your username and try again.');
+                return;
+            }
+            
             // Prepare authentication data
             const authData = { 
-                image: imageBase64 
+                image: imageBase64,
+                username: usernameField.value.trim()
             };
-            
-            // Add username if provided
-            if (usernameField && usernameField.value) {
-                authData.username = usernameField.value;
-            }
             
             // Send to backend for authentication
             const response = await fetch('/api/authenticate', {
@@ -126,6 +133,27 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
+    /**
+     * Validates the username before starting camera
+     */
+    function validateUsername(event) {
+        if (!usernameField || usernameField.value.trim() === '') {
+            // Prevent camera from starting
+            event.preventDefault();
+            event.stopPropagation();
+            
+            // Show error
+            usernameError.classList.remove('d-none');
+            usernameErrorMessage.textContent = 'Please enter your username before proceeding';
+            usernameField.focus();
+            return false;
+        }
+        
+        // Username provided, hide error if shown
+        usernameError.classList.add('d-none');
+        return true;
+    }
+
     /**
      * Shows an error message to the user
      */
