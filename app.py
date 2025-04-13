@@ -46,13 +46,27 @@ login_manager.login_view = 'login'
 # User loader for Flask-Login
 @login_manager.user_loader
 def load_user(user_id):
-    from models import User
-    return User.query.get(int(user_id))
+    if session.get('user_type') == 'admin':
+        from models import Admin
+        return Admin.query.get(int(user_id))
+    else:
+        from models import User
+        return User.query.get(int(user_id))
 
 with app.app_context():
     # Import models to ensure tables are created
     import models
     db.create_all()
+    
+    # Create default admin account if it doesn't exist
+    from models import Admin
+    admin = Admin.query.filter_by(username="admin").first()
+    if not admin:
+        admin = Admin(username="admin", email="admin@visionid.com")
+        admin.set_password("adminpass123")
+        db.session.add(admin)
+        db.session.commit()
+        logger.info("Created default admin account")
 
 @app.route('/')
 def landing():
@@ -349,6 +363,122 @@ def enroll_face():
             'status': 'failure',
             'message': f'Error processing request: {str(e)}'
         }), 500
+
+# Admin routes and functionality
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    """Admin login page."""
+    from models import Admin
+    
+    if current_user.is_authenticated and session.get('user_type') == 'admin':
+        return redirect(url_for('admin_dashboard'))
+    
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
+        admin = Admin.query.filter_by(username=username).first()
+        
+        if admin and admin.check_password(password):
+            # Set session to indicate this is an admin
+            session['user_type'] = 'admin'
+            
+            login_user(admin)
+            admin.last_login = datetime.datetime.utcnow()
+            db.session.commit()
+            
+            return redirect(url_for('admin_dashboard'))
+        else:
+            return render_template('admin_login.html', error='Invalid admin credentials')
+    
+    return render_template('admin_login.html')
+
+@app.route('/admin/logout')
+@login_required
+def admin_logout():
+    """Admin logout."""
+    session.pop('user_type', None)
+    logout_user()
+    return redirect(url_for('landing'))
+
+@app.route('/admin/dashboard')
+@login_required
+def admin_dashboard():
+    """Admin dashboard page."""
+    if session.get('user_type') != 'admin':
+        return redirect(url_for('landing'))
+    
+    from models import User, FaceRecord, AuthenticationLog
+    
+    # Get user and authentication statistics
+    user_count = User.query.count()
+    face_count = FaceRecord.query.count()
+    auth_count = AuthenticationLog.query.count()
+    
+    # Get all users with their face records
+    users = User.query.all()
+    
+    return render_template('admin_dashboard.html', 
+                          admin=current_user, 
+                          users=users, 
+                          user_count=user_count, 
+                          face_count=face_count, 
+                          auth_count=auth_count)
+
+@app.route('/admin/delete/user/<int:user_id>')
+@login_required
+def admin_delete_user(user_id):
+    """Delete a user and all their associated records."""
+    if session.get('user_type') != 'admin':
+        return redirect(url_for('landing'))
+    
+    from models import User, FaceRecord, AuthenticationLog
+    import os
+    
+    user = User.query.get_or_404(user_id)
+    
+    try:
+        # Delete face records for this user
+        face_records = FaceRecord.query.filter_by(user_id=user_id).all()
+        for record in face_records:
+            # In a production system, you'd also remove the face image files
+            db.session.delete(record)
+        
+        # Delete authentication logs for this user
+        auth_logs = AuthenticationLog.query.filter_by(user_id=user_id).all()
+        for log in auth_logs:
+            db.session.delete(log)
+        
+        # Delete user
+        db.session.delete(user)
+        db.session.commit()
+        
+        return redirect(url_for('admin_dashboard'))
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting user: {str(e)}")
+        return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/delete/face/<int:face_id>')
+@login_required
+def admin_delete_face(face_id):
+    """Delete a face record."""
+    if session.get('user_type') != 'admin':
+        return redirect(url_for('landing'))
+    
+    from models import FaceRecord
+    
+    face_record = FaceRecord.query.get_or_404(face_id)
+    
+    try:
+        db.session.delete(face_record)
+        db.session.commit()
+        
+        return redirect(url_for('admin_dashboard'))
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting face record: {str(e)}")
+        return redirect(url_for('admin_dashboard'))
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

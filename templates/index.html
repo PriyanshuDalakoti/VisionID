@@ -49,14 +49,17 @@
                     </div>
                     <div class="card-body">
                         {% if not current_user.is_authenticated %}
-                        <!-- Optional username field for authentication -->
+                        <!-- Required username field for authentication -->
                         <div class="mb-3">
-                            <label for="username-field" class="form-label">Username (optional)</label>
+                            <label for="username-field" class="form-label">Username <span class="text-danger">*</span></label>
                             <div class="input-group">
                                 <span class="input-group-text"><i class="fas fa-user"></i></span>
-                                <input type="text" class="form-control" id="username-field" placeholder="Enter your username if registered">
+                                <input type="text" class="form-control" id="username-field" placeholder="Enter your username" required>
                             </div>
-                            <div class="form-text">Enter your username if you're a registered user, or leave blank for general authentication.</div>
+                            <div class="form-text">Enter your registered username to authenticate with your face.</div>
+                        </div>
+                        <div id="username-error" class="alert alert-danger d-none mb-3">
+                            <i class="fas fa-exclamation-circle me-2"></i><span id="username-error-message">Please enter your username</span>
                         </div>
                         {% endif %}
 
