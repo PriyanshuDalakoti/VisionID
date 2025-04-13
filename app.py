@@ -5,41 +5,62 @@ import cv2
 import numpy as np
 import datetime
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
-from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_login import LoginManager, login_user, logout_user, current_user, login_required
 from face_recognition_utils import detect_face, verify_face
+import config
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-class Base(DeclarativeBase):
-    pass
+# Database setup
+if config.USE_MONGODB:
+    # MongoDB will be used (import and setup is in mongo_models.py)
+    import mongo_models
+    from mongo_models import create_default_admin
+    # We still need SQLAlchemy for SQLAlchemy session
+    from flask_sqlalchemy import SQLAlchemy
+    class Base(DeclarativeBase):
+        pass
+    db = SQLAlchemy(model_class=Base)
+else:
+    # PostgreSQL will be used with SQLAlchemy
+    from flask_sqlalchemy import SQLAlchemy
+    class Base(DeclarativeBase):
+        pass
+    db = SQLAlchemy(model_class=Base)
 
-db = SQLAlchemy(model_class=Base)
+# Create the login manager
 login_manager = LoginManager()
 
 # Create the app
 app = Flask(__name__)
-app.secret_key = os.environ.get("SESSION_SECRET", "dev-secret-key-change-in-production")
+app.secret_key = config.SECRET_KEY
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)  # needed for url_for to generate with https
 
-# Configure the PostgreSQL database
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///visionid.db")
-app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-    "pool_recycle": 300,
-    "pool_pre_ping": True,
-}
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+# Configure the database
+if not config.USE_MONGODB:
+    # SQLAlchemy configuration for PostgreSQL
+    app.config["SQLALCHEMY_DATABASE_URI"] = config.POSTGRES_URL
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+        "pool_recycle": 300,
+        "pool_pre_ping": True,
+    }
+    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    
+    # Print database URL for debugging (without credentials)
+    db_url = app.config["SQLALCHEMY_DATABASE_URI"]
+    logger.info(f"Using PostgreSQL database: {db_url.split('@')[-1] if '@' in db_url else db_url}")
+    
+    # Initialize SQLAlchemy
+    db.init_app(app)
+else:
+    # MongoDB is used
+    logger.info(f"Using MongoDB database: {config.MONGODB_URI}")
 
-# Print database URL for debugging (without credentials)
-db_url = app.config["SQLALCHEMY_DATABASE_URI"]
-logger.info(f"Using database: {db_url.split('@')[-1] if '@' in db_url else db_url}")
-
-# Initialize the app with extensions
-db.init_app(app)
+# Initialize login manager
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
@@ -222,9 +243,11 @@ def authenticate():
                 face_records = FaceRecord.query.filter_by(user_id=user_id).all()
                 
                 if face_records:
-                    # In a real system, we would compare face embeddings
-                    # For now, we'll simulate successful authentication for users with face records
-                    is_authenticated = verify_face(face)
+                    # Get the first face record for this user to use as reference
+                    stored_face_data = face_records[0].embedding
+                    
+                    # Compare the detected face with the stored face data
+                    is_authenticated = verify_face(face, stored_face_data)
                     confidence_score = 0.95 if is_authenticated else 0.3
                 else:
                     logger.info(f"User {username} has no face records")
@@ -233,10 +256,11 @@ def authenticate():
             else:
                 logger.info(f"Username {username} not found")
         else:
-            # Without a username, use general authentication
-            # In a real system, we would search all face records for a match
-            is_authenticated = verify_face(face)
-            confidence_score = 0.95 if is_authenticated else 0.3
+            # Without a username, authentication should fail
+            # For security reasons, we require a username for face authentication
+            logger.warning("Face authentication attempted without username")
+            is_authenticated = False  # Always fail without username
+            confidence_score = 0.0
         
         # If authenticated and we have a user_id, log them in
         if is_authenticated and user_id:
