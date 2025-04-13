@@ -55,8 +55,13 @@ with app.app_context():
     db.create_all()
 
 @app.route('/')
+def landing():
+    """Render the landing page that directs users to registration or authentication."""
+    return render_template('landing.html')
+
+@app.route('/authenticate')
 def index():
-    """Render the main application page."""
+    """Render the main authentication page."""
     return render_template('index.html')
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -147,7 +152,7 @@ def profile():
 @app.route('/api/authenticate', methods=['POST'])
 def authenticate():
     """API endpoint to authenticate a face."""
-    from models import User, AuthenticationLog
+    from models import User, AuthenticationLog, FaceRecord
     
     try:
         # Get the base64 image from the request
@@ -176,28 +181,44 @@ def authenticate():
         if face is None:
             return jsonify({'status': 'failure', 'message': 'No face detected in image'}), 400
         
-        # In a production system, we would:
-        # 1. Extract face embeddings from the detected face
-        # 2. Query the database for matching face records
-        # 3. Return the user ID if a match is found
-        
-        # For this demo, we'll simulate face authentication
-        is_authenticated = verify_face(face)
-        confidence_score = 0.95 if is_authenticated else 0.3  # Simulated confidence
-        
-        # In a real system, we would:
+        # Authentication variables
+        is_authenticated = False
+        confidence_score = 0.0
         user_id = None
-        if is_authenticated and username:
-            # Look up the user
+        
+        # If a username is provided, attempt to authenticate against that user's face records
+        if username:
             user = User.query.filter_by(username=username).first()
             if user:
                 user_id = user.id
+                face_records = FaceRecord.query.filter_by(user_id=user_id).all()
                 
-                # In a production system, we would log the user in
-                if user_id and not request.headers.get('X-No-Login'):
-                    user = User.query.get(user_id)
-                    if user:
-                        login_user(user)
+                if face_records:
+                    # In a real system, we would compare face embeddings
+                    # For now, we'll simulate successful authentication for users with face records
+                    is_authenticated = verify_face(face)
+                    confidence_score = 0.95 if is_authenticated else 0.3
+                else:
+                    logger.info(f"User {username} has no face records")
+                    is_authenticated = False
+                    confidence_score = 0.0
+            else:
+                logger.info(f"Username {username} not found")
+        else:
+            # Without a username, use general authentication
+            # In a real system, we would search all face records for a match
+            is_authenticated = verify_face(face)
+            confidence_score = 0.95 if is_authenticated else 0.3
+        
+        # If authenticated and we have a user_id, log them in
+        if is_authenticated and user_id:
+            user = User.query.get(user_id)
+            if user:
+                login_user(user)
+                
+                # Update last login time
+                user.last_login = datetime.datetime.utcnow()
+                db.session.commit()
         
         # Log the authentication attempt
         log_entry = AuthenticationLog(
@@ -209,6 +230,27 @@ def authenticate():
         )
         db.session.add(log_entry)
         db.session.commit()
+        
+        # Save the authentication attempt image for security review
+        if face is not None:
+            import uuid
+            import os
+            
+            # Generate a unique filename for the authentication attempt
+            timestamp = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+            status = "success" if is_authenticated else "failed"
+            auth_filename = f"auth_{timestamp}_{status}_{uuid.uuid4().hex[:8]}.jpg"
+            auth_path = os.path.join('static', 'faces', auth_filename)
+            
+            # Save the authentication face image
+            try:
+                auth_face_bytes = cv2.imencode('.jpg', face)[1].tobytes()
+                with open(auth_path, 'wb') as f:
+                    f.write(auth_face_bytes)
+                logger.info(f"Saved authentication attempt image to {auth_path}")
+            except Exception as e:
+                logger.error(f"Error saving authentication face image: {str(e)}")
+                # Continue even if file saving fails
         
         if is_authenticated:
             return jsonify({
@@ -235,6 +277,8 @@ def enroll_face():
     """API endpoint to enroll a user's face."""
     from models import FaceRecord
     import pickle
+    import uuid
+    import os
     
     try:
         # Get the base64 image from the request
@@ -268,6 +312,19 @@ def enroll_face():
         # In a real system, this would be a numeric embedding vector
         face_bytes = cv2.imencode('.jpg', face)[1].tobytes()
         
+        # Generate a unique filename for the face image
+        face_filename = f"{current_user.username}_{uuid.uuid4().hex}.jpg"
+        face_path = os.path.join('static', 'faces', face_filename)
+        
+        # Save the face image to the filesystem
+        try:
+            with open(face_path, 'wb') as f:
+                f.write(face_bytes)
+            logger.info(f"Saved face image to {face_path}")
+        except Exception as e:
+            logger.error(f"Error saving face image: {str(e)}")
+            # Continue even if file saving fails
+        
         # Create a new face record for the current user
         face_record = FaceRecord(
             user_id=current_user.id,
@@ -281,7 +338,8 @@ def enroll_face():
         return jsonify({
             'status': 'success',
             'message': 'Face enrolled successfully',
-            'record_id': face_record.id
+            'record_id': face_record.id,
+            'image_path': face_path
         })
         
     except Exception as e:
