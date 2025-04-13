@@ -13,6 +13,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const resetSuccessBtn = document.getElementById('reset-success');
     const resetFailureBtn = document.getElementById('reset-failure');
     
+    // Username field (optional)
+    const usernameField = document.getElementById('username-field');
+    
     // Event Listeners
     authenticateBtn.addEventListener('click', authenticateUser);
     resetSuccessBtn.addEventListener('click', resetApplication);
@@ -46,13 +49,23 @@ document.addEventListener('DOMContentLoaded', function() {
             authenticateBtn.classList.add('d-none');
             loadingIndicator.classList.remove('d-none');
             
+            // Prepare authentication data
+            const authData = { 
+                image: imageBase64 
+            };
+            
+            // Add username if provided
+            if (usernameField && usernameField.value) {
+                authData.username = usernameField.value;
+            }
+            
             // Send to backend for authentication
             const response = await fetch('/api/authenticate', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ image: imageBase64 }),
+                body: JSON.stringify(authData),
             });
             
             const data = await response.json();
@@ -67,6 +80,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Show success message
                 successCard.classList.remove('d-none');
                 failureCard.classList.add('d-none');
+                
+                // If user_id is returned, redirect to profile after delay
+                if (data.user_id) {
+                    setTimeout(() => {
+                        window.location.href = '/profile';
+                    }, 2000);
+                }
             } else {
                 // Show failure message
                 successCard.classList.add('d-none');
@@ -99,6 +119,11 @@ document.addEventListener('DOMContentLoaded', function() {
         resultContainer.classList.add('d-none');
         successCard.classList.add('d-none');
         failureCard.classList.add('d-none');
+        
+        // Clear username if field exists
+        if (usernameField) {
+            usernameField.value = '';
+        }
     }
     
     /**
