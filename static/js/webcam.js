@@ -110,6 +110,10 @@ class WebcamHandler {
         this.captureBtn.classList.add('d-none');
         this.retakeBtn.classList.remove('d-none');
         
+        // Stop the camera after capturing the image
+        this.stopCamera();
+        console.log('Camera automatically closed after capturing image');
+        
         // Custom event
         document.dispatchEvent(new CustomEvent('webcam:captured', {
             detail: { image: this.capturedImage }
@@ -117,7 +121,8 @@ class WebcamHandler {
     }
     
     retakeImage() {
-        if (!this.stream) return;
+        // Start the camera again since we stopped it after capturing
+        this.startCamera();
         
         // Reset state
         this.isCaptured = false;

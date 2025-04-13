@@ -1,43 +1,15 @@
-/* Custom styles for VisionID Face Authentication System */
-
-#camera-container {
-    width: 100%;
-    height: 400px;
-    border-radius: 8px;
-    overflow: hidden;
-    background-color: var(--bs-gray-800);
-    position: relative;
-}
-
-#camera-placeholder {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+/* General styles */
+body {
+    min-height: 100vh;
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    color: var(--bs-gray-500);
 }
 
-#webcam, #canvas {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    border-radius: 8px;
+.container {
+    flex: 1;
 }
 
-#face-guidelines {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-}
-
+/* Face detection guidelines */
 .face-oval {
     position: absolute;
     top: 50%;
@@ -45,46 +17,75 @@
     transform: translate(-50%, -50%);
     width: 220px;
     height: 300px;
-    border: 3px dashed var(--bs-info);
-    border-radius: 50%;
-    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+    border: 3px dashed rgba(255, 255, 255, 0.7);
+    border-radius: 50% / 60%;
+    pointer-events: none;
 }
 
 .guideline-text {
     position: absolute;
-    bottom: 20px;
+    bottom: 10px;
     left: 0;
-    width: 100%;
+    right: 0;
     text-align: center;
     color: white;
     background-color: rgba(0, 0, 0, 0.5);
-    padding: 8px;
+    padding: 5px;
+    font-size: 14px;
 }
 
-#loading-indicator {
-    margin: 20px auto;
-    text-align: center;
+/* Video container */
+#camera-container, #enroll-camera-container {
+    position: relative;
+    overflow: hidden;
+    border-radius: 10px;
+    margin: 0 auto;
+    max-width: 640px;
+    aspect-ratio: 16/9;
+    background-color: #343a40;
+}
+
+video, canvas {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 10px;
+}
+
+/* Home button styling */
+.home-button {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 1000;
+    font-size: 1.2rem;
+    padding: 10px 20px;
+    border-radius: 50px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s ease;
+}
+
+.home-button:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.4);
+}
+
+.home-button i {
+    font-size: 1.4rem;
+    vertical-align: middle;
+    margin-right: 5px;
 }
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-    #camera-container {
-        height: 300px;
+    .home-button {
+        top: 10px;
+        left: 10px;
+        font-size: 1rem;
+        padding: 8px 15px;
     }
     
-    .face-oval {
-        width: 180px;
-        height: 250px;
-    }
-}
-
-@media (max-width: 576px) {
-    #camera-container {
-        height: 240px;
-    }
-    
-    .face-oval {
-        width: 150px;
-        height: 200px;
+    .home-button i {
+        font-size: 1.2rem;
     }
 }
